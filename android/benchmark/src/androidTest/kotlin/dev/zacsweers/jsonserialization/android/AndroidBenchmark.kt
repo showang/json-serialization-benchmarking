@@ -42,7 +42,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.junit.runners.Parameterized.Parameters
+import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.io.Reader
 import java.io.Writer
@@ -74,6 +76,27 @@ class AndroidBenchmark(
     }
   }
 
+  class KotlinxSerializationBuffer(private val json: String) {
+
+    val response: Response
+    val kSerializer: KSerializer<Response> = Response.underlyingSerializer()
+    lateinit var bufferedSource: BufferedSource
+    lateinit var bufferedSink: BufferedSink
+    lateinit var inputStream: InputStream
+    lateinit var outputStream: OutputStream
+
+    init {
+      response = Response.parse(kSerializer, json)
+    }
+
+    fun setupIteration() {
+      bufferedSource = Buffer().write(json.toByteArray())
+      inputStream = bufferedSource.inputStream()
+      bufferedSink = Buffer()
+      outputStream = bufferedSink.outputStream()
+    }
+  }
+
   class ReflectiveMoshi(json: String) {
 
     private val moshi: Moshi = Moshi.Builder().build()
@@ -95,6 +118,25 @@ class AndroidBenchmark(
     init {
       adapter = gson.getAdapter(Response::class.java)
       response = adapter.fromJson(json)
+    }
+  }
+
+  class ReflectiveGsonBuffer(private val json: String) {
+
+    private val gson: Gson = GsonBuilder().create()
+    lateinit var source: Reader
+    lateinit var sink: Writer
+    val response: Response
+    val adapter: TypeAdapter<Response>
+
+    init {
+      adapter = gson.getAdapter(Response::class.java)
+      response = adapter.fromJson(json)
+    }
+
+    fun setupIteration() {
+      source = InputStreamReader(Buffer().write(json.toByteArray()).inputStream(), Charsets.UTF_8)
+      sink = OutputStreamWriter(Buffer().outputStream(), Charsets.UTF_8)
     }
   }
 
@@ -250,6 +292,18 @@ class AndroidBenchmark(
   }
 
   @Test
+  fun kserializer_buffer_toJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { KotlinxSerializationBuffer(json).also { it.setupIteration() } }
+    param.response.encode(param.kSerializer, param.outputStream)
+  }
+
+  @Test
+  fun kserializer_okiobuffer_toJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { KotlinxSerializationBuffer(json).also { it.setupIteration() } }
+    param.response.encode(param.kSerializer, param.bufferedSink)
+  }
+
+  @Test
   fun moshi_reflective_string_toJson() = benchmarkRule.measureRepeated {
     val param = runWithTimingDisabled { ReflectiveMoshi(json) }
     param.adapter.toJson(param.response)
@@ -302,6 +356,12 @@ class AndroidBenchmark(
   }
 
   @Test
+  fun gson_reflective_buffer_toJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { ReflectiveGsonBuffer(json).also { it.setupIteration() } }
+    param.adapter.toJson(param.sink, param.response)
+  }
+
+  @Test
   fun gson_autovalue_string_toJson() = benchmarkRule.measureRepeated {
     val param = runWithTimingDisabled { AVGson(json) }
     param.adapter.toJson(param.response)
@@ -317,6 +377,18 @@ class AndroidBenchmark(
   fun kserializer_string_fromJson() = benchmarkRule.measureRepeated {
     val param = runWithTimingDisabled { KotlinxSerialization(json) }
     Response.parse(param.kSerializer, json)
+  }
+
+  @Test
+  fun kserializer_buffer_fromJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { KotlinxSerializationBuffer(json).also { it.setupIteration() } }
+    Response.parse(param.kSerializer, param.inputStream)
+  }
+
+  @Test
+  fun kserializer_okiobuffer_fromJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { KotlinxSerializationBuffer(json).also { it.setupIteration() } }
+    Response.parse(param.kSerializer, param.bufferedSource)
   }
 
   @Test
@@ -369,6 +441,12 @@ class AndroidBenchmark(
   fun gson_reflective_string_fromJson() = benchmarkRule.measureRepeated {
     val param = runWithTimingDisabled { ReflectiveGson(json) }
     param.adapter.fromJson(json)
+  }
+
+  @Test
+  fun gson_reflective_buffer_fromJson() = benchmarkRule.measureRepeated {
+    val param = runWithTimingDisabled { ReflectiveGsonBuffer(json).also { it.setupIteration() } }
+    param.adapter.fromJson(param.source)
   }
 
   @Test

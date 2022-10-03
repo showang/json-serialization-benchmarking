@@ -30,4 +30,5 @@ dependencies {
     api "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
     api "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     api "org.jetbrains.kotlinx:kotlinx-serialization-json:$serialization_version"
+    api "org.jetbrains.kotlinx:kotlinx-serialization-json-okio:$serialization_version"
 }

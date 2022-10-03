@@ -1,12 +1,5 @@
 package dev.zacsweers.jsonserialization.jmh;
 
-import dev.zacsweers.jsonserialization.models.adapter.GeneratedJsonAdapterFactory;
-import dev.zacsweers.jsonserialization.models.adapter.GeneratedTypeAdapterFactory;
-import dev.zacsweers.jsonserialization.models.kotlinx_serialization.Response;
-import dev.zacsweers.jsonserialization.models.java_serialization.ResponseJ;
-import dev.zacsweers.jsonserialization.models.model_av.ResponseAV;
-import dev.zacsweers.jsonserialization.models.moshiKotlinCodegen.KCGResponse;
-import dev.zacsweers.jsonserialization.models.moshiKotlinReflective.KRResponse;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import com.google.gson.Gson;
@@ -15,17 +8,7 @@ import com.google.gson.TypeAdapter;
 import com.squareup.moshi.JsonAdapter;
 import com.squareup.moshi.Moshi;
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.Reader;
-import java.io.Writer;
-import java.net.URL;
-import java.util.concurrent.TimeUnit;
-import kotlinx.serialization.KSerializer;
-import okio.Buffer;
-import okio.BufferedSink;
-import okio.BufferedSource;
+
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;
@@ -35,6 +18,28 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
+
+import dev.zacsweers.jsonserialization.models.adapter.GeneratedJsonAdapterFactory;
+import dev.zacsweers.jsonserialization.models.adapter.GeneratedTypeAdapterFactory;
+import dev.zacsweers.jsonserialization.models.java_serialization.ResponseJ;
+import dev.zacsweers.jsonserialization.models.kotlinx_serialization.Response;
+import dev.zacsweers.jsonserialization.models.model_av.ResponseAV;
+import dev.zacsweers.jsonserialization.models.moshiKotlinCodegen.KCGResponse;
+import dev.zacsweers.jsonserialization.models.moshiKotlinReflective.KRResponse;
+import kotlinx.serialization.KSerializer;
+import okio.Buffer;
+import okio.BufferedSink;
+import okio.BufferedSource;
 
 @SuppressWarnings("ALL")
 public class JmhBenchmark {
@@ -54,6 +59,37 @@ public class JmhBenchmark {
         }
 
         public String json;
+        public Response response;
+        public KSerializer<Response> kSerializer;
+    }
+
+    @State(Scope.Benchmark)
+    public static class KotlinxSerializationBuffer {
+
+        @Param({"true", "false"})
+        public boolean minified;
+
+        @Setup()
+        public void doSetup() throws Exception {
+            URL url = Resources.getResource("largesample" + (minified ? "_minified" : "") + ".json");
+            json = Resources.toString(url, Charsets.UTF_8);
+            kSerializer = Response.underlyingSerializer();
+            response = Response.parse(kSerializer, json);
+        }
+
+        @Setup(Level.Invocation)
+        public void setupIteration() {
+            bufferedSource = new Buffer().write(json.getBytes());
+            inputStream = bufferedSource.inputStream();
+            bufferedSink = new Buffer();
+            outputStream = bufferedSink.outputStream();
+        }
+
+        public String json;
+        public BufferedSource bufferedSource;
+        public InputStream inputStream;
+        public BufferedSink bufferedSink;
+        public OutputStream outputStream;
         public Response response;
         public KSerializer<Response> kSerializer;
     }
@@ -96,6 +132,35 @@ public class JmhBenchmark {
 
         public Gson gson;
         public String json;
+        public Response response;
+        public TypeAdapter<Response> adapter;
+    }
+
+    @State(Scope.Benchmark)
+    public static class ReflectiveGsonBuffer {
+
+        @Param({"true", "false"})
+        public boolean minified;
+
+        @Setup
+        public void setupTrial() throws Exception {
+            gson = new GsonBuilder().create();
+            URL url = Resources.getResource("largesample" + (minified ? "_minified" : "") + ".json");
+            json = Resources.toString(url, Charsets.UTF_8);
+            adapter = gson.getAdapter(Response.class);
+            response = adapter.fromJson(json);
+        }
+
+        @Setup(Level.Invocation)
+        public void setupIteration() {
+            source = new InputStreamReader(new Buffer().write(json.getBytes()).inputStream(), Charsets.UTF_8);
+            sink = new OutputStreamWriter(new Buffer().outputStream(), Charsets.UTF_8);
+        }
+
+        public Gson gson;
+        public String json;
+        public Reader source;
+        public Writer sink;
         public Response response;
         public TypeAdapter<Response> adapter;
     }
@@ -324,6 +389,22 @@ public class JmhBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
+    public OutputStream kserializer_buffer_toJson(KotlinxSerializationBuffer param) throws IOException {
+        param.response.encode(param.kSerializer, param.outputStream);
+        return param.outputStream;
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    public BufferedSink kserializer_okiobuffer_toJson(KotlinxSerializationBuffer param) throws IOException {
+        param.response.encode(param.kSerializer, param.bufferedSink);
+        return param.bufferedSink;
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
     public String moshi_reflective_string_toJson(ReflectiveMoshi param) throws IOException {
         return param.adapter.toJson(param.response);
     }
@@ -383,6 +464,14 @@ public class JmhBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
+    public Writer gson_reflective_buffer_toJson(ReflectiveGsonBuffer param) throws IOException {
+        param.adapter.toJson(param.sink, param.response);
+        return param.sink;
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
     public String gson_autovalue_string_toJson(AVGson param) throws IOException {
         return param.adapter.toJson(param.response);
     }
@@ -400,6 +489,20 @@ public class JmhBenchmark {
     @OutputTimeUnit(TimeUnit.SECONDS)
     public Response kserializer_string_fromJson(KotlinxSerialization param) throws IOException {
         return Response.parse(param.kSerializer, param.json);
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    public Response kserializer_buffer_fromJson(KotlinxSerializationBuffer param) throws IOException {
+        return Response.parse(param.kSerializer, param.inputStream);
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    public Response kserializer_okiobuffer_fromJson(KotlinxSerializationBuffer param) throws IOException {
+        return Response.parse(param.kSerializer, param.bufferedSource);
     }
 
     @Benchmark
@@ -456,6 +559,13 @@ public class JmhBenchmark {
     @OutputTimeUnit(TimeUnit.SECONDS)
     public Response gson_reflective_string_fromJson(ReflectiveGson param) throws IOException {
         return param.adapter.fromJson(param.json);
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    public Response gson_reflective_buffer_fromJson(ReflectiveGsonBuffer param) throws IOException {
+        return param.adapter.fromJson(param.source);
     }
 
     @Benchmark
