@@ -1,8 +1,11 @@
-apply plugin: 'java-library'
-apply plugin: 'org.jetbrains.kotlin.jvm'
-apply plugin: 'org.jetbrains.kotlin.kapt'
-apply plugin: 'kotlinx-serialization'
-apply plugin: 'idea'
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'kotlin-kapt'
+    id 'kotlinx-serialization'
+    id 'idea'
+    //id("dev.zacsweers.moshix") version "0.18.3"
+}
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8

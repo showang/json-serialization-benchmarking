@@ -1,7 +1,9 @@
-apply plugin: 'java'
-apply plugin: 'org.jetbrains.kotlin.jvm'
-apply plugin: "me.champeau.gradle.jmh"
-apply plugin: "com.github.johnrengelman.shadow"
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'me.champeau.gradle.jmh'
+    id 'com.github.johnrengelman.shadow'
+}
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
