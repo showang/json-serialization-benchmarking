@@ -1,13 +1,14 @@
 buildscript {
-    ext.kotlin_version = '1.7.10'
-    ext.serialization_version = '1.4.0'
+    ext.kotlin_version = '1.9.21'
+    ext.serialization_version = '1.6.2'
     ext.jmh_version = '1.35'
     repositories {
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:7.3.0"
+        classpath 'com.android.tools.build:gradle:8.2.0'
         classpath "me.champeau.gradle:jmh-gradle-plugin:0.5.3"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
@@ -17,11 +18,9 @@ buildscript {
 plugins {
     id 'com.github.johnrengelman.shadow' version '7.1.2'
     id 'androidx.benchmark' version '1.1.0' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.21' apply false
+    id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.21'
 }
-
-ext.kotlin_version = '1.7.10'
-ext.serialization_version = '1.4.0'
-ext.jmh_version = '1.35'
 
 subprojects {
     repositories {
